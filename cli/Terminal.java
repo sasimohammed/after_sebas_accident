@@ -167,6 +167,94 @@ public class Terminal {
         Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
     }
 
+    public void copyDirectory(File source, File destination) throws IOException {
+        if (!destination.exists()) {
+            destination.mkdirs();
+        }
+        File[] files = source.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                File newDest = new File(destination, file.getName());
+                if (file.isDirectory()) {
+                    copyDirectory(file, newDest);
+                }
+                else {
+                    Files.copy(file.toPath(), newDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+    }
+
+    public void cpr(String[] args) throws IOException {
+        if (args.length < 2) {
+            System.out.println("Usage: cp -r <source> <destination>");
+            return;
+        }
+        File source = new File(args[0]);
+        File destination = new File(args[1]);
+        if (source.isDirectory()) {
+            copyDirectory(source, destination);
+        }
+
+        else{
+                System.out.println("Use only cp if you want to copy files.");
+            }
+        }
+    public void rm(String[] args) throws IOException{
+    if (args.length > 1) {
+        System.out.println("Usage: rm <filename>");
+        return;
+    }
+    Path file = currentPath.resolve(args[0]);
+    if (!Files.exists(file)) {
+        System.out.println("file not found: " + args[0]);
+        return;
+    }
+    if (Files.isDirectory(file)) {
+        System.out.println("This is a directory,Not a file.");
+        return;
+    }
+    Files.delete(file);
+}
+    public void cat(String[] args) throws IOException {
+        if (args.length == 1) {
+           Path filename = currentPath.resolve(args[0]);
+           if (!Files.exists(filename)) {
+               System.out.println("file not found: " + args[0]);
+               return;
+           }
+           if (Files.isDirectory(filename)) {
+               System.out.println("This is a directory,Not a file.");
+               return;
+           }
+            List<String> lines = Files.readAllLines(filename);
+            for (String line : lines) {
+                System.out.println(line);
+            }
+        }
+        else if(args.length == 2){
+            Path filename1 = currentPath.resolve(args[0]);
+            Path filename2 = currentPath.resolve(args[1]);
+            if (!Files.exists(filename1) || !Files.exists(filename2)) {
+                System.out.println("file not found: " + args[0]);
+                return;
+            }
+            if (Files.isDirectory(filename1) || Files.isDirectory(filename2)) {
+                System.out.println("This is a directory,Not a file.");
+                return;
+            }
+            List<String> lines1 = Files.readAllLines(filename1);
+            List<String> lines2 = Files.readAllLines(filename2);
+            for (String line : lines1) {
+                System.out.println(line);
+            }
+            for (String line : lines2) {
+                System.out.println(line);
+            }
+
+        }
+    }
+
     public void zip(String[] args) throws IOException {
         if (args.length < 2) {
             System.out.println("Usage: zip <archive-name.zip> <file1> <file2> ...");
@@ -303,6 +391,15 @@ public class Terminal {
                 break;
             case "cp":
                 cp(args);
+                break;
+            case "cp -r":
+                cpr(args);
+                break;
+            case "rm":
+                rm(args);
+                break;
+            case "cat":
+                cat(args);
                 break;
             case "zip":
                 zip(args);
