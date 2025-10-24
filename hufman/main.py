@@ -5,7 +5,9 @@ class Node:
         self.left = None
         self.right = None
 
+
 nodes = []
+
 
 def calculate_frequencies(word):
     global nodes
@@ -16,6 +18,7 @@ def calculate_frequencies(word):
             freq = word.count(char)
             frequencies[char] = freq
             nodes.append(Node(char, freq))
+
 
 def build_huffman_tree():
     while len(nodes) > 1:
@@ -28,6 +31,7 @@ def build_huffman_tree():
         nodes.append(merged)
     return nodes[0]
 
+
 def generate_huffman_codes(node, current_code, codes):
     if node is None:
         return
@@ -36,6 +40,7 @@ def generate_huffman_codes(node, current_code, codes):
     generate_huffman_codes(node.left, current_code + '0', codes)
     generate_huffman_codes(node.right, current_code + '1', codes)
 
+
 def huffman_encoding(word):
     calculate_frequencies(word)
     root = build_huffman_tree()
@@ -43,8 +48,8 @@ def huffman_encoding(word):
     generate_huffman_codes(root, '', codes)
     return codes
 
-def huffman_decoding_from_files(encoded_file="encoded.txt", codes_file="codes.txt", output_file="decoded.txt"):
 
+def huffman_decoding_from_files(encoded_file="encoded.txt", codes_file="codes.txt", output_file="decoded.txt"):
     try:
         with open(encoded_file, "r", encoding="utf-8") as f:
             encoded_word = f.read().strip()
@@ -80,6 +85,7 @@ def huffman_decoding_from_files(encoded_file="encoded.txt", codes_file="codes.tx
         f.write(decoded_message)
 
     print(f"Decoding complete! Result saved to '{output_file}'.")
+
 
 # ==== MENU ====
 while True:
