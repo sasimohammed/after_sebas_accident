@@ -4,7 +4,6 @@ public class Parser {
     private String commandName;
     private String[] args;
 
-
     private static final Set<String> VALID_COMMANDS = Set.of(
             "pwd",
             "cd",
@@ -17,8 +16,6 @@ public class Parser {
             "rm",
             "cat",
             "wc",
-            ">",
-            ">>",
             "zip",
             "unzip"
     );
@@ -26,8 +23,13 @@ public class Parser {
     public boolean parse(String input) {
         if (input == null || input.trim().isEmpty()) return false;
 
+
+        input = input.replaceAll(">>", " >> ");
+        input = input.replaceAll(">", " > ");
+
         String[] tokens = input.trim().split("\\s+");
         commandName = null;
+
 
         for (int i = 0; i < tokens.length; i++) {
             if (i < tokens.length - 1 && tokens[i].equals("cp") && tokens[i + 1].equals("-r")) {
@@ -35,6 +37,7 @@ public class Parser {
                 break;
             }
         }
+
 
         if (commandName == null) {
             for (String token : tokens) {
@@ -45,10 +48,12 @@ public class Parser {
             }
         }
 
+
         if (commandName == null) {
             System.out.println("Unknown command!");
             return false;
         }
+
 
         List<String> argList = new ArrayList<>();
         for (int i = 0; i < tokens.length; i++) {
@@ -56,7 +61,7 @@ public class Parser {
                 i++;
                 continue;
             }
-            if (!tokens[i].equals(commandName) && !tokens[i].equals("-r")) {
+            if (!tokens[i].equals(commandName) && !tokens[i].equals("-r") && !tokens[i].equals(">") && !tokens[i].equals(">>")) {
                 argList.add(tokens[i]);
             }
         }
@@ -72,6 +77,4 @@ public class Parser {
     public String[] getArgs() {
         return args;
     }
-
-
 }

@@ -9,19 +9,16 @@ public class Terminal {
     private final Parser parser = new Parser();
 
     public void pwd() {
-
         System.out.println(currentPath.toAbsolutePath().normalize());
     }
 
-    public void cd(String[] args) throws IOException {
+    public void cd(String[] args) {
         Path newPath;
-
 
         if (args.length == 0) {
             String home = System.getProperty("user.home");
             newPath = Paths.get(home);
         }
-
         else if (args[0].equals("..")) {
             newPath = currentPath.getParent();
             if (newPath == null) {
@@ -29,7 +26,6 @@ public class Terminal {
                 return;
             }
         }
-
         else {
             newPath = currentPath.resolve(args[0]).normalize();
         }
@@ -42,7 +38,7 @@ public class Terminal {
     }
 
     public void ls() throws IOException {
-        // Takes no arguments and lists contents sorted alphabetically
+
         List<Path> entries = new ArrayList<>();
         try (DirectoryStream<Path> dirContent = Files.newDirectoryStream(currentPath)) {
             for (Path entry : dirContent) {
@@ -50,7 +46,7 @@ public class Terminal {
             }
         }
 
-        // Sort alphabetically by filename
+
         entries.sort(Comparator.comparing(path -> path.getFileName().toString()));
 
         for (Path entry : entries) {
@@ -59,7 +55,7 @@ public class Terminal {
     }
 
     public void mkdir(String[] args) throws IOException {
-        // Takes 1 or more arguments
+
         if (args.length < 1) {
             System.out.println("Usage: mkdir <directory1> [directory2 ...]");
             return;
@@ -68,7 +64,7 @@ public class Terminal {
         for (String dirName : args) {
             Path newDir;
 
-            // Check if it's a full path or should be created in current directory
+
             if (dirName.startsWith("/") || dirName.contains(File.separator)) {
                 newDir = Paths.get(dirName).normalize();
             } else {
@@ -91,7 +87,7 @@ public class Terminal {
             return;
         }
 
-        // Case 1: rmdir * - remove all empty directories in current directory
+
         if (args[0].equals("*")) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentPath)) {
                 int removedCount = 0;
@@ -104,16 +100,18 @@ public class Terminal {
                                 removedCount++;
                             }
                         } catch (IOException e) {
-                            // Directory might not be accessible, skip it
+                            System.out.println("Cannot access directory: " + p);
                         }
                     }
                 }
                 System.out.println("Removed " + removedCount + " empty directories");
+            } catch (IOException e) {
+                System.out.println("Error accessing current directory: " + e.getMessage());
             }
             return;
         }
 
-        // Case 2: rmdir with path - remove only if empty
+
         Path targetDir = currentPath.resolve(args[0]);
         if (!Files.exists(targetDir)) {
             System.out.println("Directory not found: " + args[0]);
@@ -137,7 +135,7 @@ public class Terminal {
     }
 
     public void touch(String[] args) throws IOException {
-        // Takes 1 argument which is full path or relative path ending with filename
+
         if (args.length != 1) {
             System.out.println("Usage: touch <filename>");
             return;
@@ -153,14 +151,13 @@ public class Terminal {
         if (Files.exists(newFile)) {
             Files.setLastModifiedTime(newFile, FileTime.fromMillis(System.currentTimeMillis()));
         } else {
-            // Create parent directories if they don't exist
+
             Files.createDirectories(newFile.getParent());
             Files.createFile(newFile);
         }
     }
 
     public void cp(String[] args) throws IOException {
-        // Takes 2 arguments, both are files
         if (args.length != 2) {
             System.out.println("Usage: cp <sourceFile> <destinationFile>");
             return;
@@ -205,7 +202,7 @@ public class Terminal {
     }
 
     public void cpr(String[] args) throws IOException {
-        // Takes 2 arguments, both are directories
+
         if (args.length != 2) {
             System.out.println("Usage: cp -r <sourceDirectory> <destinationDirectory>");
             return;
@@ -227,7 +224,7 @@ public class Terminal {
             return;
         }
 
-        // If destination doesn't exist, create it
+
         if (!Files.exists(destination)) {
             Files.createDirectories(destination);
         }
@@ -265,7 +262,7 @@ public class Terminal {
         }
 
         if (args.length == 1) {
-            // Single file - print its content
+
             Path file = currentPath.resolve(args[0]);
             if (!Files.exists(file)) {
                 System.out.println("File not found: " + args[0]);
@@ -323,26 +320,12 @@ public class Terminal {
             return;
         }
 
-        int lines = 0;
-        int words = 0;
-        int chars = 0;
+        String content = Files.readString(filePath);
+        int lines = content.split("\n").length;
+        String[] words = content.trim().isEmpty() ? new String[0] : content.trim().split("\\s+");
+        int chars = content.length();
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath.toFile()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lines++;
-                // Count words (split by whitespace)
-                String[] wordArray = line.trim().split("\\s+");
-                if (!line.trim().isEmpty()) {
-                    words += wordArray.length;
-                }
-                // Count characters including line terminator
-                chars += line.length() + 1; // +1 for newline character
-            }
-        }
-
-        // Format: lines words chars filename
-        System.out.println(lines + " " + words + " " + chars + " " + filePath.getFileName());
+        System.out.println(lines + " " + words.length + " " + chars + " " + filePath.getFileName());
     }
 
     public void writeToFile(String[] args) {
@@ -492,7 +475,185 @@ public class Terminal {
         System.out.println("Extracted to: " + destDir);
     }
 
+    // THE ONLY CHANGE: Modified chooseCommandAction to handle both > and >> redirection
     public void chooseCommandAction(String input) throws IOException {
+        // Check for append redirection >>
+        if (input.contains(">>")) {
+            String[] parts = input.split(">>", 2);
+            if (parts.length == 2) {
+                String commandPart = parts[0].trim();
+                String filename = parts[1].trim();
+
+                // Execute the command and capture output
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                PrintStream originalOut = System.out;
+
+                try {
+                    // Redirect System.out to capture output
+                    System.setOut(new PrintStream(baos));
+
+                    // Parse and execute the command (output goes to baos)
+                    if (parser.parse(commandPart)) {
+                        String commandName = parser.getCommandName();
+                        String[] args = parser.getArgs();
+
+                        switch (commandName) {
+                            case "pwd":
+                                pwd();
+                                break;
+                            case "cd":
+                                cd(args);
+                                break;
+                            case "ls":
+                                ls();
+                                break;
+                            case "mkdir":
+                                mkdir(args);
+                                break;
+                            case "rmdir":
+                                rmdir(args);
+                                break;
+                            case "touch":
+                                touch(args);
+                                break;
+                            case "cp":
+                                cp(args);
+                                break;
+                            case "cp -r":
+                                cpr(args);
+                                break;
+                            case "rm":
+                                rm(args);
+                                break;
+                            case "cat":
+                                cat(args);
+                                break;
+                            case "wc":
+                                wc(args);
+                                break;
+                            case "zip":
+                                zip(args);
+                                break;
+                            case "unzip":
+                                unzip(args);
+                                break;
+                            default:
+                                System.out.println("Unknown command: " + commandName);
+                        }
+                    }
+
+                    // Restore original output
+                    System.setOut(originalOut);
+
+                    // Write captured output to file in append mode
+                    String output = baos.toString();
+                    Path filePath = currentPath.resolve(filename);
+
+                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath.toFile(), true))) {
+                        writer.write(output);
+                        System.out.println("Output appended to: " + filename);
+                    } catch (IOException e) {
+                        System.out.println("Error writing to file: " + filename);
+                    }
+
+                } catch (Exception e) {
+                    // Always restore original output even if error occurs
+                    System.setOut(originalOut);
+                    System.out.println("Error: " + e.getMessage());
+                }
+                return;
+            }
+        }
+
+        // Check for overwrite redirection >
+        if (input.contains(">")) {
+            String[] parts = input.split(">", 2);
+            if (parts.length == 2) {
+                String commandPart = parts[0].trim();
+                String filename = parts[1].trim();
+
+                // Execute the command and capture output
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                PrintStream originalOut = System.out;
+
+                try {
+                    // Redirect System.out to capture output
+                    System.setOut(new PrintStream(baos));
+
+                    // Parse and execute the command (output goes to baos)
+                    if (parser.parse(commandPart)) {
+                        String commandName = parser.getCommandName();
+                        String[] args = parser.getArgs();
+
+                        switch (commandName) {
+                            case "pwd":
+                                pwd();
+                                break;
+                            case "cd":
+                                cd(args);
+                                break;
+                            case "ls":
+                                ls();
+                                break;
+                            case "mkdir":
+                                mkdir(args);
+                                break;
+                            case "rmdir":
+                                rmdir(args);
+                                break;
+                            case "touch":
+                                touch(args);
+                                break;
+                            case "cp":
+                                cp(args);
+                                break;
+                            case "cp -r":
+                                cpr(args);
+                                break;
+                            case "rm":
+                                rm(args);
+                                break;
+                            case "cat":
+                                cat(args);
+                                break;
+                            case "wc":
+                                wc(args);
+                                break;
+                            case "zip":
+                                zip(args);
+                                break;
+                            case "unzip":
+                                unzip(args);
+                                break;
+                            default:
+                                System.out.println("Unknown command: " + commandName);
+                        }
+                    }
+
+                    // Restore original output
+                    System.setOut(originalOut);
+
+                    // Write captured output to file in overwrite mode
+                    String output = baos.toString();
+                    Path filePath = currentPath.resolve(filename);
+
+                    try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath.toFile(), false))) {
+                        writer.write(output);
+                        System.out.println("Output written to: " + filename);
+                    } catch (IOException e) {
+                        System.out.println("Error writing to file: " + filename);
+                    }
+
+                } catch (Exception e) {
+                    // Always restore original output even if error occurs
+                    System.setOut(originalOut);
+                    System.out.println("Error: " + e.getMessage());
+                }
+                return;
+            }
+        }
+
+        // Normal command execution (no redirection)
         if (!parser.parse(input)) return;
 
         String commandName = parser.getCommandName();
