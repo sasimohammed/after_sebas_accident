@@ -537,6 +537,11 @@ public class Terminal {
                             case "unzip":
                                 unzip(args);
                                 break;
+                            case "exit":
+                                System.out.println("Exiting CLI...");
+                                System.exit(0);
+                                break;
+
                             default:
                                 System.out.println("Unknown command: " + commandName);
                         }
@@ -706,6 +711,7 @@ public class Terminal {
                 unzip(args);
                 break;
             case "exit":
+                System.out.println("Exiting CLI...");
                 System.exit(0);
                 break;
             default:
