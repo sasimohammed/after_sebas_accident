@@ -1,3 +1,6 @@
+
+
+
 class Node:
     def __init__(self, char=None, freq=0):
         self.char = char
@@ -49,31 +52,52 @@ def huffman_encoding(word):
     return codes
 
 
-def huffman_decoding_from_files(encoded_file="encoded.txt", codes_file="codes.txt", output_file="decoded.txt"):
+def bits_to_bytes(bit_string):
+    extra_bits = 8 - len(bit_string) % 8 if len(bit_string) % 8 != 0 else 0
+    bit_string += '0' * extra_bits  # padding
+    byte_array = bytearray()
+    for i in range(0, len(bit_string), 8):
+        byte_array.append(int(bit_string[i:i + 8], 2))
+    return byte_array, extra_bits
+
+
+def huffman_decoding_from_files(encoded_file="encoded.bin", codes_file="codes.txt", output_file="decoded.txt"):
     try:
-        with open(encoded_file, "r", encoding="utf-8") as f:
-            encoded_word = f.read().strip()
+        with open(codes_file, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+            padding2 = int(lines[0].strip())
+            codes2 = {}
+            for line in lines[1:]:
+                line = line.strip()
+                if line:
+                    char, code = line.split(":")
+                    codes2[char] = code
+    except FileNotFoundError:
+        print(f"File '{codes_file}' not found!")
+        return
+    except ValueError:
+        print(f"Invalid format in '{codes_file}'!")
+        return
+
+    try:
+        with open(encoded_file, "rb") as f:
+            byte_data = f.read()
     except FileNotFoundError:
         print(f"File '{encoded_file}' not found!")
         return
 
-    codes = {}
-    try:
-        with open(codes_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    char, code = line.split(":")
-                    codes[char] = code
-    except FileNotFoundError:
-        print(f"File '{codes_file}' not found!")
-        return
+    bit_string = ''.join(f'{byte:08b}' for byte in byte_data)
 
+    if padding2 > 0:
+        bit_string = bit_string[:-padding2]
+
+    # Decoding
+    code_to_char = {v: k for k, v in codes2.items()}
     current_code = ''
     decoded_chars = []
-    code_to_char = {v: k for k, v in codes.items()}
 
-    for bit in encoded_word:
+    for bit in bit_string:
         current_code += bit
         if current_code in code_to_char:
             decoded_chars.append(code_to_char[current_code])
@@ -91,7 +115,7 @@ def huffman_decoding_from_files(encoded_file="encoded.txt", codes_file="codes.tx
 while True:
     print("\nHuffman Menu:")
     print("1. Encode from input.txt")
-    print("2. Decode from encoded.txt + codes.txt")
+    print("2. Decode from encoded.bin + codes.txt")
     print("3. Exit")
     choice = input("Choose an option (1-3): ")
 
@@ -110,21 +134,22 @@ while True:
         codes = huffman_encoding(word)
         encoded_word = ''.join(codes[char] for char in word)
 
+        byte_array, padding = bits_to_bytes(encoded_word)
+        with open("encoded.bin", "wb") as f:
+            f.write(byte_array)
+
+        with open("codes.txt", "w", encoding="utf-8") as f:
+            f.write(f"{padding}\n")
+            for char, code in codes.items():
+                f.write(f"{char}:{code}\n")
+
         with open("output.txt", "w", encoding="utf-8") as f:
             f.write(f"Original Word: {word}\n")
-            f.write(f"Encoded Huffman Code: {encoded_word}\n\n")
-            f.write("Codes Table:\n")
+            f.write(f"Codes Table:\n")
             for char, code in codes.items():
                 f.write(f"{char}:{code}\n")
 
-        # Save encoded only for decoding later
-        with open("encoded.txt", "w", encoding="utf-8") as f:
-            f.write(encoded_word)
-        with open("codes.txt", "w", encoding="utf-8") as f:
-            for char, code in codes.items():
-                f.write(f"{char}:{code}\n")
-
-        print("Encoding complete! Results saved to 'output.txt', 'encoded.txt', and 'codes.txt'.")
+        print("Encoding complete! Results saved to 'encoded.bin', 'codes.txt', and 'output.txt'.")
 
     elif choice == "2":
         huffman_decoding_from_files()
