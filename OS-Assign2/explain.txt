@@ -1,0 +1,84 @@
+Main Parts of the Solution/patteern 👇🏻
+_______________________________________
+1️⃣ Semaphore
+Acts like a traffic light or counter.
+Controls how many threads can do something at the same time.
+Has two main operations:
+waitSem() → “stop/go to sleep if not allowed.”
+signalSem() → “allow one waiting thread to continue.”
+
+2️⃣ Mutex (Mutual Exclusion Semaphore)
+A special semaphore with value 1.
+Makes sure only one thread at a time can touch the shared resource (the queue).
+
+3️⃣ Empty Semaphore
+Counts how many spaces are left in the waiting area.
+Cars use it:
+If it’s 0 → the area is full → car waits.
+When a pump finishes → Empty.signalSem() → one car can enter.
+
+
+4️⃣ Full Semaphore
+Counts how many cars are waiting in the queue.
+Pumps use it:
+If it’s 0 → no cars → pump waits.
+When a car enters → Full.signalSem() → wakes a pump.
+
+
+5️⃣ Queue (Shared Buffer)
+Holds the waiting cars.
+Shared between all car and pump threads.
+Access is protected by the mutex.
+
+6️⃣ Threads
+Car threads (Producers): add themselves to the queue.
+Pump threads (Consumers): remove cars from the queue and serve them.
+________________________________________________________________________
+
+What happens in code step by step 👇🏻
+______________________________________
+1️) A car arrives
+
+When a new Car thread starts, it says:
+    “I’m here! Is there an empty spot?”
+
+It checks the Empty semaphore:
+If there is space,
+     it enters the queue.
+
+If there’s no space, 
+    it waits until someone leaves.
+
+Then it locks the queue (Mutex), adds itself, unlocks, and tells pumps:
+    “Hey, a car is waiting!” (Full.signalSem())
+
+_____________________________________________________________
+2️) A pump is waiting
+
+Each Pump thread is sitting idle, saying:
+“I’m waiting for a car…”
+
+It checks the Full semaphore.
+    If Full = 0 (no cars waiting), it sleeps.
+    Once Full > 0 (a car arrived), it wakes up.
+
+Then it locks the queue (Mutex), removes the first car, unlocks, and tells cars:
+“There’s a free space now!” (Empty.signalSem())
+
+Then it “washes” the car (just waits for a few seconds with Thread.sleep()).
+
+_________________________________________________________________
+3️) Everything repeats
+
+Cars keep arriving.
+
+Pumps keep serving.
+
+Semaphores make sure no two things happen at once:
+
+Mutex → one person at a time touches the queue.
+
+Empty → cars wait if no spots.
+
+Full → pumps wait if no cars.
+
