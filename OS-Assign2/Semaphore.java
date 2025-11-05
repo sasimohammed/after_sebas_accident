@@ -1,19 +1,23 @@
 class Semaphore {
+    private int value;
 
-    private int value = 0 ;
+    public Semaphore(int initial) {
+        value = initial;
+    }
 
-    public Semaphore(int initial) { value = initial ; }
-
-    public synchronized void waitSem(){
-        value-- ;
-        if (value < 0)
-            try { wait() ; } 
-            catch( InterruptedException e ) { }
+    public synchronized void waitSem() {
+        while (value <= 0) {
+            try {
+                wait();
+            } catch(InterruptedException e) {
+                System.err.println("Semaphore wait interrupted: " + e.getMessage());
+            }
         }
+        value--;
+    }
 
     public synchronized void signalSem() {
-        value++ ; 
-        if (value <= 0) 
-            notify() ;
-        }
+        value++;
+        notifyAll();
+    }
 }
