@@ -1,8 +1,9 @@
 import numpy as np
 from PIL import Image
 import math
+import matplotlib.pyplot as plt
 
-# Fast exponentiation
+# ----------------- FAST POWER -----------------
 def fast_power(base, exp):
     result = 1
     while exp > 0:
@@ -36,8 +37,8 @@ def compress_image(image_path, b, save_path="compressed.npz"):
 
     # Compute difference
     diff = arr - pred
-    minE = np.min(diff[1:, 1:]) if h > 1 and w > 1 else 0
-    maxE = np.max(diff[1:, 1:]) if h > 1 and w > 1 else 0
+    minE = np.min(diff[1:,1:]) if h>1 and w>1 else 0
+    maxE = np.max(diff[1:,1:]) if h>1 and w>1 else 0
     
     target = fast_power(2, b)
     target = max(target, 1)
@@ -49,7 +50,7 @@ def compress_image(image_path, b, save_path="compressed.npz"):
     mp = {}
     for k in range(target):
         left = minE + k * step
-        right = minE + (k + 1) * step
+        right = minE + (k+1) * step
         Li = math.ceil(left)
         Ri = math.floor(right)
         if k == target - 1:
@@ -62,24 +63,58 @@ def compress_image(image_path, b, save_path="compressed.npz"):
     q_diff = np.zeros_like(diff)
     for i in range(1, h):
         for j in range(1, w):
-            normalized = (diff[i, j] - minE) / step
+            normalized = (diff[i,j] - minE)/step
             num = int(normalized + 1e-9)
-            num = max(0, min(num, target - 1))
-            q_diff[i, j] = num
+            num = max(0, min(num, target-1))
+            q_diff[i,j] = num
 
-    # Save all data needed for decompression
+    # De-quantized diff
+    deq_diff = np.zeros_like(diff)
+    for i in range(1,h):
+        for j in range(1,w):
+            L,R = mp[q_diff[i,j]]
+            deq_diff[i,j] = (L + R)//2
+
+    # Reconstruct image
+    orig = np.zeros_like(arr)
+    orig[0,:] = arr[0,:]
+    orig[:,0] = arr[:,0]
+    orig[1:,1:] = pred[1:,1:] + deq_diff[1:,1:]
+
+    # Compute compression ratio
+    orig_bits = h*w*8
+    comp_bits = (h-1)*(w-1)*b + (h+w)*8
+    compression_ratio = orig_bits / comp_bits
+
+    # Save compressed data
     np.savez_compressed(save_path,
                         q_diff=q_diff,
                         mp=mp,
-                        first_row=arr[0, :],
-                        first_col=arr[:, 0],
+                        first_row=arr[0,:],
+                        first_col=arr[:,0],
                         pred=pred,
                         shape=arr.shape)
-    print(f"Compression done! Data saved to '{save_path}'")
+    
+    print(f"\nCompression done! Data saved to '{save_path}'")
+    print(f"Compression Ratio: {compression_ratio:.2f}\n")
+
+    # Display all 6 images with titles
+    fig, axes = plt.subplots(2, 3, figsize=(12,8))
+    axes = axes.ravel()
+
+    images = [arr, pred, diff, q_diff*(255/(2**b-1)), deq_diff, orig]
+    titles = ["Original", "Predicted", "Error", "Quantized", "De-quantized", "Reconstructed"]
+
+    for ax, img_data, title in zip(axes, images, titles):
+        ax.imshow(np.clip(img_data,0,255), cmap='gray', vmin=0, vmax=255)
+        ax.set_title(title)
+        ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
 
 # ----------------- DECOMPRESSION -----------------
 def decompress_image(compressed_path, save_image_path="reconstructed.png"):
-    # Load compressed data
     data = np.load(compressed_path, allow_pickle=True)
     q_diff = data['q_diff']
     mp = data['mp'].item()
@@ -88,22 +123,22 @@ def decompress_image(compressed_path, save_image_path="reconstructed.png"):
     pred = data['pred']
     h, w = data['shape']
 
-    # Reconstruct image exactly like original code
-    orig = np.zeros((h, w), dtype=int)
-    orig[0, :] = first_row
-    orig[:, 0] = first_col
-    orig[1:, 1:] = pred[1:, 1:]  # Start with predictor
+    # Reconstruct
+    orig = np.zeros((h,w), dtype=int)
+    orig[0,:] = first_row
+    orig[:,0] = first_col
+    orig[1:,1:] = pred[1:,1:]
 
-    # Add dequantized difference
+    # De-quantized diff
     deq_diff = np.zeros_like(q_diff)
-    for i in range(1, h):
-        for j in range(1, w):
-            L, R = mp[q_diff[i, j]]
-            deq_diff[i, j] = (L + R) // 2
-            orig[i, j] += deq_diff[i, j]
+    for i in range(1,h):
+        for j in range(1,w):
+            L,R = mp[q_diff[i,j]]
+            deq_diff[i,j] = (L + R)//2
+            orig[i,j] += deq_diff[i,j]
 
     # Save reconstructed image
-    reconstructed_img = Image.fromarray(np.clip(orig, 0, 255).astype(np.uint8))
+    reconstructed_img = Image.fromarray(np.clip(orig,0,255).astype(np.uint8))
     reconstructed_img.save(save_image_path)
     print(f"Decompression done! Image saved as '{save_image_path}'")
     reconstructed_img.show()
