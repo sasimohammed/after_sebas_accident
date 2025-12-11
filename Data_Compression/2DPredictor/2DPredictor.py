@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 import math
 
+# Fast exponentiation
 def fast_power(base, exp):
     result = 1
     while exp > 0:
@@ -11,13 +12,14 @@ def fast_power(base, exp):
         exp >>= 1
     return result
 
-def predictor_quantization(image_path, b):
+# ----------------- COMPRESSION -----------------
+def compress_image(image_path, b, save_path="compressed.npz"):
     # Open image and convert to grayscale
-    img = Image.open(image_path).convert('L')  # 'L' = 8-bit grayscale
+    img = Image.open(image_path).convert('L')
     arr = np.array(img, dtype=int)
     h, w = arr.shape
     
-    # Initialize predictor array
+    # Predictor array
     pred = np.zeros_like(arr)
     pred[0, :] = arr[0, :]
     pred[:, 0] = arr[:, 0]
@@ -56,34 +58,79 @@ def predictor_quantization(image_path, b):
             Ri = Li
         mp[k] = (Li, Ri)
     
-    # Quantize and dequantize
+    # Quantize difference
     q_diff = np.zeros_like(diff)
-    deq_diff = np.zeros_like(diff)
-    
     for i in range(1, h):
         for j in range(1, w):
             normalized = (diff[i, j] - minE) / step
             num = int(normalized + 1e-9)
             num = max(0, min(num, target - 1))
             q_diff[i, j] = num
-            
-            L, R = mp[num]
+
+    # Save all data needed for decompression
+    np.savez_compressed(save_path,
+                        q_diff=q_diff,
+                        mp=mp,
+                        first_row=arr[0, :],
+                        first_col=arr[:, 0],
+                        pred=pred,
+                        shape=arr.shape)
+    print(f"Compression done! Data saved to '{save_path}'")
+
+# ----------------- DECOMPRESSION -----------------
+def decompress_image(compressed_path, save_image_path="reconstructed.png"):
+    # Load compressed data
+    data = np.load(compressed_path, allow_pickle=True)
+    q_diff = data['q_diff']
+    mp = data['mp'].item()
+    first_row = data['first_row']
+    first_col = data['first_col']
+    pred = data['pred']
+    h, w = data['shape']
+
+    # Reconstruct image exactly like original code
+    orig = np.zeros((h, w), dtype=int)
+    orig[0, :] = first_row
+    orig[:, 0] = first_col
+    orig[1:, 1:] = pred[1:, 1:]  # Start with predictor
+
+    # Add dequantized difference
+    deq_diff = np.zeros_like(q_diff)
+    for i in range(1, h):
+        for j in range(1, w):
+            L, R = mp[q_diff[i, j]]
             deq_diff[i, j] = (L + R) // 2
-    
-    # Reconstruct image
-    orig = np.zeros_like(arr)
-    orig[0, :] = arr[0, :]
-    orig[:, 0] = arr[:, 0]
-    orig[1:, 1:] = pred[1:, 1:] + deq_diff[1:, 1:]
-    
+            orig[i, j] += deq_diff[i, j]
+
     # Save reconstructed image
     reconstructed_img = Image.fromarray(np.clip(orig, 0, 255).astype(np.uint8))
-    reconstructed_img.save("reconstructed.png")
-    
-    return reconstructed_img, q_diff, deq_diff, mp
+    reconstructed_img.save(save_image_path)
+    print(f"Decompression done! Image saved as '{save_image_path}'")
+    reconstructed_img.show()
 
-# Example usage
-image_path = "bw_image.png"  # Replace with your black & white image path
-b = 2  # Number of quantization bits
-reconstructed_img, q_diff, deq_diff, mp = predictor_quantization(image_path, b)
-reconstructed_img.show()
+# ----------------- MENU -----------------
+def main():
+    while True:
+        print("\n===== Predictor Quantization Menu =====")
+        print("1. Compress an image")
+        print("2. Decompress an image")
+        print("3. Exit")
+        choice = input("Enter your choice (1/2/3): ")
+
+        if choice == "1":
+            image_path = input("Enter path to image: ")
+            b = int(input("Enter number of quantization bits (e.g., 2-8): "))
+            save_path = input("Enter compressed file name (default: compressed.npz): ") or "compressed.npz"
+            compress_image(image_path, b, save_path)
+        elif choice == "2":
+            compressed_path = input("Enter path to compressed file (.npz): ")
+            save_image_path = input("Enter reconstructed image name (default: reconstructed.png): ") or "reconstructed.png"
+            decompress_image(compressed_path, save_image_path)
+        elif choice == "3":
+            print("Exiting program.")
+            break
+        else:
+            print("Invalid choice! Try again.")
+
+if __name__ == "__main__":
+    main()
