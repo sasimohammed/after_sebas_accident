@@ -131,154 +131,82 @@ def quantize_diff(diff, b):
     return q_diff, deq_diff, mp, minE, maxE, step
 
 
+# ----------------- HELPER TO ENSURE RGB -----------------
+def ensure_rgb(img):
+    if len(img.shape) == 2:  # grayscale
+        return np.stack([img]*3, axis=-1)
+    return img  # already RGB
+
+
 # ----------------- COMPRESSION -----------------
 def compress_image(image_path, b=2, save_path="compressed.npz", show_images=False):
     img = Image.open(image_path)
-    if img.mode == 'RGB':
-        arr = np.array(img, dtype=int)
-        is_rgb = True
-        image_type = "RGB"
-    else:
-        img = img.convert('L')
-        arr = np.array(img, dtype=int)
-        is_rgb = False
-        image_type = "Grayscale"
+    original_array = np.array(img, dtype=np.uint8)
+
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    arr = np.array(img, dtype=int)
+    is_rgb = True
+    image_type = "RGB"
 
     pred = predict_2d(arr)
     diff = arr - pred
     q_diff, deq_diff, mp, minE, maxE, step = quantize_diff(diff, b)
     show_quantization_details(mp, b, minE, maxE, step)
 
-    if is_rgb:
-        decompressed = np.zeros_like(arr)
-        decompressed[0, :, :] = arr[0, :, :]
-        decompressed[:, 0, :] = arr[:, 0, :]
-        decompressed[1:, 1:, :] = pred[1:, 1:, :] + deq_diff[1:, 1:, :]
-        orig_bits = arr.size * 8
-        comp_bits = (arr.shape[0] - 1) * (arr.shape[1] - 1) * arr.shape[2] * b + (arr.shape[0] + arr.shape[1]) * \
-                    arr.shape[2] * 8
-        np.savez_compressed(save_path,
-                            q_diff=q_diff,
-                            mp=mp,
-                            first_row=arr[0, :, :],
-                            first_col=arr[:, 0, :],
-                            pred=pred,
-                            shape=arr.shape,
-                            is_rgb=True)
-    else:
-        decompressed = np.zeros_like(arr)
-        decompressed[0, :] = arr[0, :]
-        decompressed[:, 0] = arr[:, 0]
-        decompressed[1:, 1:] = pred[1:, 1:] + deq_diff[1:, 1:]
-        orig_bits = arr.size * 8
-        comp_bits = (arr.shape[0] - 1) * (arr.shape[1] - 1) * b + (arr.shape[0] + arr.shape[1]) * 8
-        np.savez_compressed(save_path,
-                            q_diff=q_diff,
-                            mp=mp,
-                            first_row=arr[0, :],
-                            first_col=arr[:, 0],
-                            pred=pred,
-                            shape=arr.shape,
-                            is_rgb=False)
+    decompressed = np.zeros_like(arr)
+    decompressed[0, :, :] = arr[0, :, :]
+    decompressed[:, 0, :] = arr[:, 0, :]
+    decompressed[1:, 1:, :] = pred[1:, 1:, :] + deq_diff[1:, 1:, :]
+
+    orig_bits = arr.size * 8
+    comp_bits = (arr.shape[0] - 1) * (arr.shape[1] - 1) * arr.shape[2] * b + (arr.shape[0] + arr.shape[1]) * arr.shape[2] * 8
+
+    np.savez_compressed(save_path,
+                        q_diff=q_diff,
+                        mp=mp,
+                        first_row=arr[0, :, :],
+                        first_col=arr[:, 0, :],
+                        pred=pred,
+                        shape=arr.shape,
+                        is_rgb=True)
 
     compression_ratio = orig_bits / comp_bits
     print(f"\nCompression done! Saved to '{save_path}'")
     print(f"Image Type: {image_type}")
     print(f"Compression Ratio: {compression_ratio:.4f}")
 
-    # ---------- SHOW IMAGES ----------
     if show_images:
         fig, axes = plt.subplots(2, 3, figsize=(15, 10))
         axes = axes.ravel()
-        if is_rgb:
-            # FIX: Prepare images properly for RGB display
-            # Original, Predicted, Decompressed should be in FULL COLOR
-            # Error, Quantized, De-quantized in grayscale
 
-            # 1. Original (RGB - Full Color)
-            original_display = np.clip(arr, 0, 255).astype(np.uint8)
+        # PREPARE DISPLAY IMAGES
+        original_display = ensure_rgb(original_array)
+        predicted_display = np.clip(pred, 0, 255).astype(np.uint8)
+        error_gray = np.mean(np.clip(diff + 128, 0, 255).astype(np.uint8), axis=2).astype(np.uint8)
+        quantized_scaled = np.clip(q_diff[:, :, 0] * (255 / max(1, (2 ** b - 1))), 0, 255).astype(np.uint8)
+        dequantized_scaled = np.clip(np.mean(deq_diff + 128, axis=2), 0, 255).astype(np.uint8)
+        decompressed_display = np.clip(decompressed, 0, 255).astype(np.uint8)
 
-            # 2. Predicted (RGB - Full Color)
-            predicted_display = np.clip(pred, 0, 255).astype(np.uint8)
+        display_images = [
+            original_display, predicted_display, error_gray,
+            quantized_scaled, dequantized_scaled, decompressed_display
+        ]
+        titles = ["Original", "Predicted", "Error", "Quantized", "De-quantized", "Decompressed"]
 
-            # 3. Error (Grayscale)
-            error_display = np.clip(diff + 128, 0, 255).astype(np.uint8)
-            # Convert to grayscale for display
-            if len(error_display.shape) == 3:
-                error_gray = np.mean(error_display, axis=2).astype(np.uint8)
+        for ax, img_data, title in zip(axes, display_images, titles):
+            ax.axis('off')
+            ax.set_title(title, fontsize=12, fontweight='bold')
+            if title in ["Original", "Predicted", "Decompressed"]:
+                ax.imshow(img_data)  # force color
             else:
-                error_gray = error_display
+                ax.imshow(img_data, cmap='gray', vmin=0, vmax=255)
 
-            # 4. Quantized (Grayscale)
-            quantized_display = np.clip(q_diff * (255 / (2 ** b - 1)), 0, 255).astype(np.uint8)
-            if len(quantized_display.shape) == 3:
-                quantized_gray = np.mean(quantized_display, axis=2).astype(np.uint8)
-            else:
-                quantized_gray = quantized_display
-
-            # 5. De-quantized (Grayscale)
-            dequantized_display = np.clip(deq_diff + 128, 0, 255).astype(np.uint8)
-            if len(dequantized_display.shape) == 3:
-                dequantized_gray = np.mean(dequantized_display, axis=2).astype(np.uint8)
-            else:
-                dequantized_gray = dequantized_display
-
-            # 6. Decompressed (RGB - Full Color)
-            decompressed_display = np.clip(decompressed, 0, 255).astype(np.uint8)
-
-            images_rgb = [
-                original_display,  # Original (RGB)
-                predicted_display,  # Predicted (RGB)
-                error_gray,  # Error (Grayscale)
-                quantized_gray,  # Quantized (Grayscale)
-                dequantized_gray,  # De-quantized (Grayscale)
-                decompressed_display  # Decompressed (RGB)
-            ]
-
-            titles = ["Original", "Predicted", "Error", "Quantized", "De-quantized", "Decompressed"]
-
-            for ax, img_data, title in zip(axes, images_rgb, titles):
-                ax.axis('off')
-                ax.set_title(title, fontsize=12, fontweight='bold')
-
-                # FIX: Proper RGB display for color images
-                if title in ["Original", "Predicted", "Decompressed"]:
-                    # For RGB images, display in full color
-                    # Convert to float in range 0-1 for proper matplotlib display
-                    if len(img_data.shape) == 3 and img_data.shape[2] == 3:
-                        # Normalize to 0-1 range
-                        img_normalized = img_data.astype(np.float32) / 255.0
-                        ax.imshow(img_normalized)
-                    else:
-                        # Fallback to grayscale if not 3-channel
-                        ax.imshow(img_data, cmap='gray', vmin=0, vmax=255)
-                else:
-                    # For grayscale images
-                    ax.imshow(img_data, cmap='gray', vmin=0, vmax=255)
-
-        else:
-            # Grayscale images - everything in grayscale
-            images_gray = [arr, pred, diff, q_diff * (255 / (2 ** b - 1)), deq_diff, decompressed]
-            titles = ["Original", "Predicted", "Error", "Quantized", "De-quantized", "Decompressed"]
-            for ax, img_data, title in zip(axes, images_gray, titles):
-                ax.imshow(np.clip(img_data, 0, 255), cmap='gray', vmin=0, vmax=255)
-                ax.set_title(title, fontsize=12, fontweight='bold')
-                ax.axis('off')
-
-        plt.suptitle(f'Compression Results - Compression Ratio: {compression_ratio:.2f}', fontsize=14,
-                     fontweight='bold')
+        plt.suptitle(f'Compression Results - Compression Ratio: {compression_ratio:.2f}', fontsize=14, fontweight='bold')
         plt.tight_layout()
         plt.savefig("compression_result.png", dpi=150, bbox_inches='tight')
         plt.close()
-        print(f"6 images saved as 'compression_result.png'")
-
-    # Save the original and decompressed images separately for verification
-    if is_rgb:
-        original_img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8))
-        decompressed_img = Image.fromarray(np.clip(decompressed, 0, 255).astype(np.uint8))
-        original_img.save("original_color_check.png")
-        decompressed_img.save("decompressed_color_check.png")
-        print("Original and decompressed images saved separately for color verification")
+        print("✓ 6-image grid saved as 'compression_result.png'")
 
 
 # ----------------- DECOMPRESSION -----------------
@@ -325,22 +253,6 @@ def decompress_image(compressed_path, save_image_path="reconstructed.png"):
     print(f"\nDecompression done! Saved as '{save_image_path}'")
     print(f"Image Type: {image_type}")
     print(f"Image dimensions: {w}x{h}")
-
-    # Show the decompressed image in a separate figure
-    plt.figure(figsize=(8, 8))
-    if is_rgb:
-        img_display = np.clip(decompressed, 0, 255).astype(np.uint8)
-        img_normalized = img_display.astype(np.float32) / 255.0
-        plt.imshow(img_normalized)
-        plt.title('Decompressed Image (RGB)', fontsize=14, fontweight='bold')
-    else:
-        plt.imshow(np.clip(decompressed, 0, 255), cmap='gray', vmin=0, vmax=255)
-        plt.title('Decompressed Image (Grayscale)', fontsize=14, fontweight='bold')
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig("decompressed_preview.png", dpi=150, bbox_inches='tight')
-    plt.close()
-    print("Decompressed image preview saved as 'decompressed_preview.png'")
 
 
 # ----------------- MENU -----------------
