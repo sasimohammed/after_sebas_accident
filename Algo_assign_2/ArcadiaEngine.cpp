@@ -586,24 +586,38 @@ int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int>>& it
     return dp[n][capacity];
 }
 
+
 long long InventorySystem::countStringPossibilities(string s) {
+
     int n = s.size();
-    if (n == 0) return 1;
+
+    for (int i=0; i<n; i++){
+        if(s[i]=='w' || s[i]=='m'|| s[i]=='W'|| s[i]=='M')
+            return 0 ;
+    }
+    if(n==0 || n== 1) return 1 ;
 
     const long long MOD = 1e9 + 7;
-    vector<long long> dp(n + 1, 0);
-    dp[0] = 1;
-    dp[1] = 1;
+    long long dp [n] ;
+    dp[0]=1 ;
 
-    for (int i = 2; i <= n; i++) {
-        dp[i] = dp[i-1];
+    for (int i =1; i<n; i++){
+        dp[i]=0;
 
-        if ((s[i-1] == 'u' && s[i-2] == 'u') || (s[i-1] == 'n' && s[i-2] == 'n')) {
-            dp[i] = (dp[i] + dp[i-2]) % MOD;
+
+        dp[i] = dp[i-1] ;
+
+        if ((s[i] == 'u' && s[i-1] == 'u')|| (s[i] == 'n' && s[i-1] == 'n')) {
+
+            if (i >= 2)
+                dp[i] += dp[i - 2] % MOD;
+            else
+                dp[i] += 1 ;
         }
-    }
 
-    return dp[n];
+        dp[i] %= MOD;
+    }
+    return dp[n-1];
 }
 
 // =========================================================
@@ -612,7 +626,7 @@ long long InventorySystem::countStringPossibilities(string s) {
 
 bool WorldNavigator::pathExists(int n, vector<vector<int>>& edges, int source, int dest) {
     if(source == dest) return true;
-
+    if (n == 0) return false;
     vector<vector<int>> adj(n);
     for(auto& e : edges){
         adj[e[0]].push_back(e[1]);
