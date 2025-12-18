@@ -96,7 +96,14 @@ int InventorySystem::maximizeCarryValue(int capacity, vector<pair<int, int>>& it
 
 
 long long InventorySystem::countStringPossibilities(string s) {
+
     int n = s.size();
+
+    //check for W,M  
+    for (int i=0; i<n; i++){
+        if(s[i]=='w' || s[i]=='m'|| s[i]=='W'|| s[i]=='M')
+            return 0 ;
+    }
     if(n==0 || n== 1) return 1 ;
 
     const long long MOD = 1e9 + 7;
@@ -150,6 +157,7 @@ int main(){
 
     // cout << "Maximum carry value = " << maxValue << endl;
 
-    cout << InventorySystem::countStringPossibilities("uunn");
-    cout << InventorySystem::countStringPossibilities("uu");
+    cout << InventorySystem::countStringPossibilities("W");
+    cout << InventorySystem::countStringPossibilities("WW");
+    cout << InventorySystem::countStringPossibilities("WWuu");
 }
