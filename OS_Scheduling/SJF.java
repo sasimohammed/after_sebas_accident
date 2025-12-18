@@ -1,15 +1,14 @@
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.PriorityQueue;
 
 public class ShortestJobFirstScheduler extends CPUScheduler {
 
     private final int contextSwitchCost;
     private int contextTimeLeft = 0;
     private Process currentProcess = null;
-    private Process nextProcess = null;
-    private PriorityQueue<Process> readyQueue = new PriorityQueue<>(
-        (p1, p2) -> Integer.compare(p1.remainingTime, p2.remainingTime)
-    );
 
     public ShortestJobFirstScheduler(int contextSwitchCost) {
         this.contextSwitchCost = contextSwitchCost;
@@ -18,6 +17,7 @@ public class ShortestJobFirstScheduler extends CPUScheduler {
     @Override
     public void start(List<Process> processes) {
         super.start(processes);
+
         if (!executionOrder.isEmpty()) {
             executionOrder.get(executionOrder.size() - 1).setEnd(currentTime - 1);
         }
@@ -31,50 +31,66 @@ public class ShortestJobFirstScheduler extends CPUScheduler {
             }
         }
 
+        sortByRemainingTime(readyQueue);
+
         if (contextTimeLeft > 0) {
             contextTimeLeft--;
-            if (contextTimeLeft == 0 && nextProcess != null) {
-                currentProcess = nextProcess;
-                nextProcess = null;
-                Interval interval = new Interval(currentProcess);
-                interval.setStart(currentTime);
-                executionOrder.add(interval);
-            }
             return;
         }
 
-        if (!readyQueue.isEmpty()) {
-            Process shortestProcess = readyQueue.peek();
+        if (readyQueue.isEmpty()) {
+            currentProcess = null;
+            return;
+        }
 
-            if (currentProcess == null) {
-                currentProcess = readyQueue.poll();
-                Interval interval = new Interval(currentProcess);
-                interval.setStart(currentTime);
-                executionOrder.add(interval);
-            } 
-            else if (shortestProcess.remainingTime < currentProcess.remainingTime) {
-                executionOrder.get(executionOrder.size() - 1).setEnd(currentTime - 1);
-                readyQueue.add(currentProcess);
-                nextProcess = readyQueue.poll();
-                currentProcess = null;
+        Process shortestProcess = readyQueue.peek();
+
+        // 6) Preemption check
+        if (currentProcess != null &&
+            shortestProcess.remainingTime < currentProcess.remainingTime) {
+
+            // Close current interval
+            executionOrder.get(executionOrder.size() - 1).setEnd(currentTime - 1);
+
+            currentProcess = null;
+            contextTimeLeft = contextSwitchCost;
+            return;
+        }
+
+        // 7) Start execution
+        currentProcess = shortestProcess;
+
+        if (executionOrder.isEmpty() ||
+            executionOrder.get(executionOrder.size() - 1).process != currentProcess) {
+
+            Interval interval = new Interval(currentProcess);
+            interval.setStart(currentTime);
+            executionOrder.add(interval);
+        }
+
+    
+        currentProcess.remainingTime--;
+
+        if (currentProcess.remainingTime == 0) {
+
+            currentProcess.turnAroundTime = currentTime + 1 - currentProcess.arrivalTime;
+            currentProcess.waitingTime = currentProcess.turnAroundTime - currentProcess.burstTime;
+
+            readyQueue.poll();
+            executionOrder.get(executionOrder.size() - 1).setEnd(currentTime);
+
+            finished++;
+            currentProcess = null;
+            if (!readyQueue.isEmpty()) {
                 contextTimeLeft = contextSwitchCost;
-                return;
             }
         }
+    }
 
-        if (currentProcess != null) {
-            currentProcess.remainingTime--;
-            if (currentProcess.remainingTime == 0) {
-                currentProcess.turnAroundTime = currentTime + 1 - currentProcess.arrivalTime;
-                currentProcess.waitingTime = currentProcess.turnAroundTime - currentProcess.burstTime;
-                executionOrder.get(executionOrder.size() - 1).setEnd(currentTime);
-                finished++;
-                currentProcess = null;
-                if (!readyQueue.isEmpty()) {
-                    nextProcess = readyQueue.poll();
-                    contextTimeLeft = contextSwitchCost;
-                }
-            }
-        }
+    private void sortByRemainingTime(Deque<Process> queue) {
+        List<Process> list = new ArrayList<>(queue);
+        list.sort(Comparator.comparingInt(p -> p.remainingTime));
+        queue.clear();
+        queue.addAll(list);
     }
 }
