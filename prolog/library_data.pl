@@ -1,4 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Students Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% student(Name, Year)
+
 student(ali, first).
 student(sara, second).
 student(omar, third).
@@ -8,42 +10,99 @@ student(nour, fourth).
 student(karim, third).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Books Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% book(Title, Author)
+
 book(prolog_fundamentals, dr_hassan).
 book(recursion_in_depth, dr_sara).
 book(list_programming, dr_ahmed).
 book(ai_intro, dr_mona).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Borrow Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% borrowed(Student, Book)
+
 borrowed(ali, prolog_fundamentals).
 borrowed(ali, list_programming).
+
 borrowed(sara, recursion_in_depth).
 borrowed(sara, ai_intro).
+
 borrowed(omar, recursion_in_depth).
+
 borrowed(mona, prolog_fundamentals).
 borrowed(mona, recursion_in_depth).
 borrowed(mona, list_programming).
+
 borrowed(yousef, list_programming).
+
 borrowed(nour, ai_intro).
+
 borrowed(karim, recursion_in_depth).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Topics Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% topics(Book, TopicsList)
+
 topics(prolog_fundamentals, [facts, rules, queries, unification]).
 topics(recursion_in_depth, [base_case, recursive_case, tracing, termination]).
 topics(list_programming, [head_tail, member, append, length, prefix, suffix]).
 topics(ai_intro, [search, logic, knowledge_representation]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Ratings Info %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% rating(Student, Book, Score)
+
 rating(ali, prolog_fundamentals, 85).
 rating(ali, list_programming, 90).
+
 rating(sara, recursion_in_depth, 95).
 rating(sara, ai_intro, 88).
+
 rating(omar, recursion_in_depth, 80).
+
 rating(mona, prolog_fundamentals, 92).
 rating(mona, recursion_in_depth, 89).
 rating(mona, list_programming, 91).
+
 rating(yousef, list_programming, 60).
+
 rating(nour, ai_intro, 78).
+
 rating(karim, recursion_in_depth, 83).
+
+
+
+
+member(X, [X|_]).
+member(X, [_|T]) :- member(X, T).
+
+
+
+books_borrowed_by_student(Student, Books) :-
+    collect_books(Student, [], Books).
+
+collect_books(Student, Acc, Books) :-
+    borrowed(Student, Book),
+    \+ member(Book, Acc), !,
+    collect_books(Student, [Book|Acc], Books).
+collect_books(_, Books, Books).
+
+
+
+
+
+borrowers_count(Book, N) :-
+    count_students(Book, [], 0, N).
+
+
+count_students(Book, Acc, CountSoFar, N) :-
+    borrowed(Student, Book),
+    \+ member(Student, Acc), !,
+    NewCount is CountSoFar + 1,
+    count_students(Book, [Student|Acc], NewCount, N).
+
+
+count_students(_, _, N, N). 
+
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Task 5: Top Reviewer %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 top_reviewer(Student) :-
@@ -122,3 +181,28 @@ count(X, [X|T], N) :-
     N is N1 + 1.
 count(X, [_|T], N) :-
     count(X, T, N), !.
+
+
+
+
+
+most_borrowed_book(B) :-
+    book(B, _),
+    count_borrowed(B, Count),
+    not((book(Other, _), Other \= B, count_borrowed(Other, OtherCount), OtherCount > Count)).
+
+count_borrowed(Book, Count) :-
+    count_borrowed(Book, [], 0, Count).  % Track seen books (the facts themselves)
+
+count_borrowed(Book, Seen, Acc, Count) :-
+    borrowed(Student, Book),
+    not_member(borrowed(Student, Book), Seen), 
+    NewAcc is Acc + 1,
+    count_borrowed(Book, [borrowed(Student, Book)|Seen], NewAcc, Count).
+
+count_borrowed(_, _, Count, Count).
+
+not_member(_, []).
+not_member(X, [H|T]) :-
+    X \= H,
+    not_member(X, T).
