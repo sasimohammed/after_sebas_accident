@@ -23,7 +23,7 @@ from board import (
     MIN_CS, MAX_CS
 )
 from moves import piece_moves, all_moves, apply_move
-from game_controller import check_winner
+from game_controller import check_winner, switch_turn
 from Ai import get_ai_move
 
 
@@ -268,7 +268,7 @@ class HnefataflGUI:
                     self.end_game('draw')
                     return
 
-                self.turn = DEFENDER
+                self.turn = switch_turn(self.turn)
                 self.status_var.set("AI is thinking...")
                 self.root.after(100, self.ai_move)
             else:
@@ -313,7 +313,7 @@ class HnefataflGUI:
                 self.end_game('draw')
                 return
 
-            self.turn = ATTACKER
+            self.turn = switch_turn(self.turn)
             self.status_var.set("Your turn - Attackers (Red) - Click a red piece to move")
         else:
             self.status_var.set("AI has no moves - You win!")
