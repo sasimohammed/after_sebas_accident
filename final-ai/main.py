@@ -69,7 +69,7 @@ class HnefataflGUI:
         tk.Label(diff_frame, text="Difficulty:", font=("Helvetica", 10),
                  bg=C_PANEL, fg=C_TEXT).pack(side=tk.LEFT)
         self.difficulty = tk.StringVar(value="Medium")
-        difficulties = [("Easy", 2), ("Medium", 3), ("Hard", 5)]
+        difficulties = [("Easy", 1), ("Medium", 3), ("Hard", 5)]
         for text, depth in difficulties:
             rb = tk.Radiobutton(diff_frame, text=text, variable=self.difficulty,
                                 value=text, command=lambda d=depth: self.set_difficulty(d),
