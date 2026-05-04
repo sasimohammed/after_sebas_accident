@@ -5,7 +5,7 @@ Hnefatafl – Fetlar Rules (11x11)
 Responsibilities:
   - Implement alpha-beta pruning
   - Choose best move
-  - Depth levels (Easy=2, Medium=3, Hard=5)
+  - Depth levels (Easy=1, Medium=3, Hard=5)
   - Uses move generator + evaluation function
 """
 
