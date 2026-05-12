@@ -1,3 +1,4 @@
+// mouse_handler.h
 #pragma once
 #include <windows.h>
 #include "core_data.h"
@@ -13,6 +14,9 @@ void InitMouseHandler();
 
 // handle mouse clicks for LINE drawing
 void HandleLineDrawing(HWND hwnd, int x, int y);
+
+// handle mouse clicks for CIRCLE drawing
+void HandleCircleDrawing(HWND hwnd, int x, int y);
 
 // reset drawing state (called when mode changes)
 void ResetDrawingState();
